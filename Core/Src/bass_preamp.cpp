@@ -8,51 +8,20 @@
 #include "bass_preamp.hpp"
 #include <cmath>
 
-BassPreAmp::BassPreAmp(float sampleRate) : sampleRate_(sampleRate) {
-	arm_biquad_cascade_df1_init_f32(&bassL_, 1, coeffsBass_.data(), stateBassL_.data());
-	arm_biquad_cascade_df1_init_f32(&bassR_, 1, coeffsBass_.data(), stateBassR_.data());
-	arm_biquad_cascade_df1_init_f32(&trebleL_, 1, coeffsTreble_.data(), stateTrebleL_.data());
-	arm_biquad_cascade_df1_init_f32(&trebleR_, 1, coeffsTreble_.data(), stateTrebleR_.data());
-
-	updateCoeffs();
-}
-
-void BassPreAmp::setBass(float value) {
-	rawBass_ = value;
-	needsUpdate_ = true;
-}
-
-void BassPreAmp::setTreble(float value) {
-	rawTreble_ = value;
-	needsUpdate_ = true;
-}
-
-void BassPreAmp::setVolume(float value) {
-	rawVolume_ = value;
-}
-
-void BassPreAmp::process(int32_t* pTx, int32_t* pRx, uint32_t numSamples) {
+void BassPreAmp::process(float32_t* pLeft, float32_t* pRight, uint32_t numSamples) {
 	if (needsUpdate_) {
 		updateCoeffs();
 		needsUpdate_ = false;
 	}
 
-	static float32_t s_tempL[ kMaxBufferSize ], s_tempR[ kMaxBufferSize ];
-	const uint32_t blockSize{ numSamples / 2 };
+	arm_biquad_cascade_df1_f32(&bassL_, pLeft, pLeft, numSamples);
+	arm_biquad_cascade_df1_f32(&bassR_, pRight, pRight, numSamples);
+	arm_biquad_cascade_df1_f32(&trebleL_, pLeft, pLeft, numSamples);
+	arm_biquad_cascade_df1_f32(&trebleR_, pRight, pRight, numSamples);
 
-	for (uint32_t i = 0, j = 0; i < numSamples; i += 2, j++) {
-			s_tempL[j] = static_cast<float32_t>(pRx[i]     * Math::kInt32ToFloat);
-			s_tempR[j] = static_cast<float32_t>(pRx[i + 1] * Math::kInt32ToFloat);
-	}
-
-	arm_biquad_cascade_df1_f32(&bassL_, s_tempL, s_tempL, blockSize);
-	arm_biquad_cascade_df1_f32(&bassR_, s_tempR, s_tempR, blockSize);
-	arm_biquad_cascade_df1_f32(&trebleL_, s_tempL, s_tempL, blockSize);
-	arm_biquad_cascade_df1_f32(&trebleR_, s_tempR, s_tempR, blockSize);
-
-	for (uint32_t i = 0, j=0; i < numSamples; i += 2, j++) {
-			pTx[i]     = (int32_t)__SSAT(static_cast<int32_t>(s_tempL[j] * rawVolume_ * Math::kFloatToInt32), 31);
-			pTx[i + 1] = (int32_t)__SSAT(static_cast<int32_t>(s_tempR[j] * rawVolume_ * Math::kFloatToInt32), 31);
+	for (uint32_t i = 0; i < numSamples; ++i) {
+			pLeft[i]  *= rawVolume_;
+			pRight[i] *= rawVolume_;
   }
 }
 
@@ -70,7 +39,7 @@ void BassPreAmp::updateCoeffs() {
 void BassPreAmp::calcLowShelf(float* coeffs, float fs, float f0, float Q, float gainDB) {
 	// Adapted from Robert Bristow-Johnson's Audio EQ Cookbook
 	const float32_t A     { std::pow(10.0f, gainDB / 40.0f) };
-	const float32_t w0    { 2.0f * Math::kPi * f0 / fs };
+	const float32_t w0    { 2.0f * Constants::Math::kPi * f0 / fs };
 	const float32_t sinW0 { std::sin(w0) };
 	const float32_t cosW0 { std::cos(w0) };
 	const float32_t alpha { sinW0 / (2.0f * Q) };
@@ -96,7 +65,7 @@ void BassPreAmp::calcLowShelf(float* coeffs, float fs, float f0, float Q, float 
 void BassPreAmp::calcHighShelf(float* coeffs, float fs, float f0, float Q, float gainDB) {
 	// Adapted from Robert Bristow-Johnson's Audio EQ Cookbook
 	const float32_t A     { std::pow(10.0f, gainDB / 40.0f) };
-	const float32_t w0    { 2.0f * Math::kPi * f0 / fs };
+	const float32_t w0    { 2.0f * Constants::Math::kPi * f0 / fs };
 	const float32_t sinW0 { std::sin(w0) };
 	const float32_t cosW0 { std::cos(w0) };
 	const float32_t alpha { sinW0 / (2.0f * Q) };

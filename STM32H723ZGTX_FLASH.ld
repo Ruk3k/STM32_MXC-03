@@ -166,6 +166,26 @@ SECTIONS
     . = ALIGN(8);
   } >RAM_D1
 
+  
+  /* USER CODE */
+  .axi_sram (NOLOAD) :
+  {
+  	. = ALIGN(4);
+  	_saxi_sram = .;
+  	*(.axi_sram)
+  	*(.axi_sram*)
+  	. = ALIGN(4);
+  	_eaxi_sram = .;
+  } >RAM_D1
+  
+  .sram4 (NOLOAD) :
+  {
+  	. = ALIGN(4);
+  	*(.sram4)
+  	*(.sram4*)
+  	. = ALIGN(4);
+  } >RAM_D3
+  
   /* Remove information from the standard libraries */
   /DISCARD/ :
   {

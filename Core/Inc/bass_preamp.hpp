@@ -8,16 +8,24 @@
 #pragma once
 #include <array>
 #include "arm_math.h"
+#include "audio_constants.hpp"
+#include "effector.hpp"
 
-class BassPreAmp {
+class BassPreAmp : public Effector {
 public:
-	BassPreAmp(float sampleRate);
+	BassPreAmp(float sampleRate) : sampleRate_(sampleRate) {
+		arm_biquad_cascade_df1_init_f32(&bassL_, 1, coeffsBass_.data(), stateBassL_.data());
+		arm_biquad_cascade_df1_init_f32(&bassR_, 1, coeffsBass_.data(), stateBassR_.data());
+		arm_biquad_cascade_df1_init_f32(&trebleL_, 1, coeffsTreble_.data(), stateTrebleL_.data());
+		arm_biquad_cascade_df1_init_f32(&trebleR_, 1, coeffsTreble_.data(), stateTrebleR_.data());
+		updateCoeffs();
+	}
 
-	void setBass(float value);
-	void setTreble(float value);
-	void setVolume(float value);
+	void setBass  (float value) {	rawBass_   = value; needsUpdate_ = true; }
+	void setTreble(float value) {	rawTreble_ = value; needsUpdate_ = true; }
+	void setVolume(float value) {	rawVolume_ = value; 										 }
 
-	void process(int32_t* pTx, int32_t* pRx, uint32_t numSamples);
+	void process(float32_t* pLeft, float32_t* pRight, uint32_t numSamples) override;
 
 private:
 	struct EffectorSpecs {
@@ -28,18 +36,10 @@ private:
 		static constexpr float32_t kMaxBoostDB      { 18.0f };
 	};
 
-	struct Math {
-	static constexpr float32_t kPi{ 3.14159265358979323846f };
-	static constexpr float kInt32ToFloat{ 1.0f / 2147483648.0f };
-	static constexpr float kFloatToInt32{ 2147483647.0f };
-	};
-
-	static constexpr int kMaxBufferSize{ 96 };
-
-	float sampleRate_;
-	float rawBass_	{ 0.5f };
-	float rawTreble_{ 0.5f };
-	float rawVolume_{ 1.0f };
+	float32_t sampleRate_;
+	float32_t rawBass_	{ 0.6f };
+	float32_t rawTreble_{ 0.5f };
+	float32_t rawVolume_{ 1.0f };
 	bool needsUpdate_{ true };
 
 	arm_biquad_casd_df1_inst_f32 bassL_, bassR_;
