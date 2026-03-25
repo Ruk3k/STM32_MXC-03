@@ -1,21 +1,21 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file         stm32h7xx_hal_msp.c
-  * @brief        This file provides code for the MSP Initialization
-  *               and de-Initialization codes.
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file         stm32h7xx_hal_msp.c
+ * @brief        This file provides code for the MSP Initialization
+ *               and de-Initialization codes.
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2026 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 
 /* Includes ------------------------------------------------------------------*/
@@ -58,10 +58,9 @@
 
 /* USER CODE END 0 */
 /**
-  * Initializes the Global MSP.
-  */
-void HAL_MspInit(void)
-{
+ * Initializes the Global MSP.
+ */
+void HAL_MspInit(void) {
 
   /* USER CODE BEGIN MspInit 0 */
 
@@ -80,25 +79,22 @@ extern DMA_HandleTypeDef hdma_sai4_a;
 
 extern DMA_HandleTypeDef hdma_sai4_b;
 
-static uint32_t SAI4_client =0;
+static uint32_t SAI4_client = 0;
 
-void HAL_SAI_MspInit(SAI_HandleTypeDef* hsai)
-{
+void HAL_SAI_MspInit(SAI_HandleTypeDef *hsai) {
 
   GPIO_InitTypeDef GPIO_InitStruct;
-/* SAI4 */
-    if(hsai->Instance==SAI4_Block_A)
-    {
+  /* SAI4 */
+  if (hsai->Instance == SAI4_Block_A) {
     /* Peripheral clock enable */
-    if (SAI4_client == 0)
-    {
-       __HAL_RCC_SAI4_CLK_ENABLE();
+    if (SAI4_client == 0) {
+      __HAL_RCC_SAI4_CLK_ENABLE();
 
-    /* Peripheral interrupt init*/
-    HAL_NVIC_SetPriority(SAI4_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(SAI4_IRQn);
+      /* Peripheral interrupt init*/
+      HAL_NVIC_SetPriority(SAI4_IRQn, 0, 0);
+      HAL_NVIC_EnableIRQ(SAI4_IRQn);
     }
-    SAI4_client ++;
+    SAI4_client++;
 
     /**SAI4_A_Block_A GPIO Configuration
     PE2     ------> SAI4_MCLK_A
@@ -106,14 +102,14 @@ void HAL_SAI_MspInit(SAI_HandleTypeDef* hsai)
     PE5     ------> SAI4_SCK_A
     PE6     ------> SAI4_SD_A
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6;
+    GPIO_InitStruct.Pin = GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
     GPIO_InitStruct.Alternate = GPIO_AF8_SAI4;
     HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-      /* Peripheral DMA init*/
+    /* Peripheral DMA init*/
 
     hdma_sai4_a.Instance = BDMA_Channel0;
     hdma_sai4_a.Init.Request = BDMA_REQUEST_SAI4_A;
@@ -124,30 +120,27 @@ void HAL_SAI_MspInit(SAI_HandleTypeDef* hsai)
     hdma_sai4_a.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
     hdma_sai4_a.Init.Mode = DMA_CIRCULAR;
     hdma_sai4_a.Init.Priority = DMA_PRIORITY_HIGH;
-    if (HAL_DMA_Init(&hdma_sai4_a) != HAL_OK)
-    {
+    if (HAL_DMA_Init(&hdma_sai4_a) != HAL_OK) {
       Error_Handler();
     }
 
     /* Several peripheral DMA handle pointers point to the same DMA handle.
-     Be aware that there is only one channel to perform all the requested DMAs. */
-    __HAL_LINKDMA(hsai,hdmarx,hdma_sai4_a);
+     Be aware that there is only one channel to perform all the requested DMAs.
+   */
+    __HAL_LINKDMA(hsai, hdmarx, hdma_sai4_a);
 
-    __HAL_LINKDMA(hsai,hdmatx,hdma_sai4_a);
-
-    }
-    if(hsai->Instance==SAI4_Block_B)
-    {
-      /* Peripheral clock enable */
-      if (SAI4_client == 0)
-      {
-       __HAL_RCC_SAI4_CLK_ENABLE();
+    __HAL_LINKDMA(hsai, hdmatx, hdma_sai4_a);
+  }
+  if (hsai->Instance == SAI4_Block_B) {
+    /* Peripheral clock enable */
+    if (SAI4_client == 0) {
+      __HAL_RCC_SAI4_CLK_ENABLE();
 
       /* Peripheral interrupt init*/
       HAL_NVIC_SetPriority(SAI4_IRQn, 0, 0);
       HAL_NVIC_EnableIRQ(SAI4_IRQn);
-      }
-    SAI4_client ++;
+    }
+    SAI4_client++;
 
     /**SAI4_B_Block_B GPIO Configuration
     PE3     ------> SAI4_SD_B
@@ -159,7 +152,7 @@ void HAL_SAI_MspInit(SAI_HandleTypeDef* hsai)
     GPIO_InitStruct.Alternate = GPIO_AF8_SAI4;
     HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
-      /* Peripheral DMA init*/
+    /* Peripheral DMA init*/
 
     hdma_sai4_b.Instance = BDMA_Channel1;
     hdma_sai4_b.Init.Request = BDMA_REQUEST_SAI4_B;
@@ -170,31 +163,28 @@ void HAL_SAI_MspInit(SAI_HandleTypeDef* hsai)
     hdma_sai4_b.Init.MemDataAlignment = DMA_MDATAALIGN_WORD;
     hdma_sai4_b.Init.Mode = DMA_CIRCULAR;
     hdma_sai4_b.Init.Priority = DMA_PRIORITY_VERY_HIGH;
-    if (HAL_DMA_Init(&hdma_sai4_b) != HAL_OK)
-    {
+    if (HAL_DMA_Init(&hdma_sai4_b) != HAL_OK) {
       Error_Handler();
     }
 
     /* Several peripheral DMA handle pointers point to the same DMA handle.
-     Be aware that there is only one channel to perform all the requested DMAs. */
-    __HAL_LINKDMA(hsai,hdmarx,hdma_sai4_b);
-    __HAL_LINKDMA(hsai,hdmatx,hdma_sai4_b);
-    }
+     Be aware that there is only one channel to perform all the requested DMAs.
+   */
+    __HAL_LINKDMA(hsai, hdmarx, hdma_sai4_b);
+    __HAL_LINKDMA(hsai, hdmatx, hdma_sai4_b);
+  }
 }
 
-void HAL_SAI_MspDeInit(SAI_HandleTypeDef* hsai)
-{
-/* SAI4 */
-    if(hsai->Instance==SAI4_Block_A)
-    {
-    SAI4_client --;
-    if (SAI4_client == 0)
-      {
+void HAL_SAI_MspDeInit(SAI_HandleTypeDef *hsai) {
+  /* SAI4 */
+  if (hsai->Instance == SAI4_Block_A) {
+    SAI4_client--;
+    if (SAI4_client == 0) {
       /* Peripheral clock disable */
-       __HAL_RCC_SAI4_CLK_DISABLE();
+      __HAL_RCC_SAI4_CLK_DISABLE();
       /* SAI4 interrupt DeInit */
       HAL_NVIC_DisableIRQ(SAI4_IRQn);
-      }
+    }
 
     /**SAI4_A_Block_A GPIO Configuration
     PE2     ------> SAI4_MCLK_A
@@ -202,22 +192,20 @@ void HAL_SAI_MspDeInit(SAI_HandleTypeDef* hsai)
     PE5     ------> SAI4_SCK_A
     PE6     ------> SAI4_SD_A
     */
-    HAL_GPIO_DeInit(GPIOE, GPIO_PIN_2|GPIO_PIN_4|GPIO_PIN_5|GPIO_PIN_6);
+    HAL_GPIO_DeInit(GPIOE, GPIO_PIN_2 | GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6);
 
     /* SAI4 DMA Deinit */
     HAL_DMA_DeInit(hsai->hdmarx);
     HAL_DMA_DeInit(hsai->hdmatx);
-    }
-    if(hsai->Instance==SAI4_Block_B)
-    {
-    SAI4_client --;
-      if (SAI4_client == 0)
-      {
+  }
+  if (hsai->Instance == SAI4_Block_B) {
+    SAI4_client--;
+    if (SAI4_client == 0) {
       /* Peripheral clock disable */
       __HAL_RCC_SAI4_CLK_DISABLE();
-    /* SAI4 interrupt DeInit */
+      /* SAI4 interrupt DeInit */
       HAL_NVIC_DisableIRQ(SAI4_IRQn);
-      }
+    }
 
     /**SAI4_B_Block_B GPIO Configuration
     PE3     ------> SAI4_SD_B
@@ -227,7 +215,7 @@ void HAL_SAI_MspDeInit(SAI_HandleTypeDef* hsai)
     /* SAI4 DMA Deinit */
     HAL_DMA_DeInit(hsai->hdmarx);
     HAL_DMA_DeInit(hsai->hdmatx);
-    }
+  }
 }
 
 /* USER CODE BEGIN 1 */

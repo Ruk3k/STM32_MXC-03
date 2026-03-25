@@ -10,8 +10,7 @@
 
 class Effector {
 public:
-	virtual ~Effector () = default;
+  virtual ~Effector() = default;
 
-	virtual void process(float32_t* pLeft, float32_t* pRight, uint32_t numSamples) = 0;
+  virtual void process(float32_t *pLeft, float32_t *pRight, uint32_t numFrames) = 0;
 };
-
