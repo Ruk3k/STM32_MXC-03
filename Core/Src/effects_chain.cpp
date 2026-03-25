@@ -21,41 +21,41 @@ AutoWah autoWah{static_cast<float>(AudioConfig::SampleRate)};
 // Chain Management Implementation
 // ========================================================================
 void initializeChain() {
-	// Clear all bypasses by default
-	isBypassed.fill(true);
+  // Clear all bypasses by default
+  isBypassed.fill(true);
 
-	// Initialize effect chain
-	effectChain[0] = &sadowskyPreAmp;
-	isBypassed[0] = false; // Bass Preamp enabled by default
+  // Initialize effect chain
+  effectChain[0] = &sadowskyPreAmp;
+  isBypassed[0] = false; // Bass Preamp enabled by default
 
-	effectChain[1] = &autoWah;
-	isBypassed[1] = true; // Auto Wah disabled by default
+  effectChain[1] = &autoWah;
+  isBypassed[1] = true; // Auto Wah disabled by default
 
-	// Remaining slots empty
-	for (size_t i = 2; i < MaxChainCount; ++i) {
-		effectChain[i] = nullptr;
-		isBypassed[i] = true;
-	}
+  // Remaining slots empty
+  for (size_t i = 2; i < MaxChainCount; ++i) {
+    effectChain[i] = nullptr;
+    isBypassed[i] = true;
+  }
 }
 
 void processChain(float32_t *pLeft, float32_t *pRight, uint32_t numFrames) {
-	for (size_t i = 0; i < MaxChainCount; ++i) {
-		if (effectChain[i] != nullptr && !isBypassed[i]) {
-			effectChain[i]->process(pLeft, pRight, numFrames);
-		}
-	}
+  for (size_t i = 0; i < MaxChainCount; ++i) {
+    if (effectChain[i] != nullptr && !isBypassed[i]) {
+      effectChain[i]->process(pLeft, pRight, numFrames);
+    }
+  }
 }
 
 void toggleBypass(size_t index) {
-	if (index < MaxChainCount && effectChain[index] != nullptr) {
-		isBypassed[index] = !isBypassed[index];
-	}
+  if (index < MaxChainCount && effectChain[index] != nullptr) {
+    isBypassed[index] = !isBypassed[index];
+  }
 }
 
 bool isBypassedEffect(size_t index) {
-	if (index < MaxChainCount) {
-		return isBypassed[index];
-	}
-	return true;
+  if (index < MaxChainCount) {
+    return isBypassed[index];
+  }
+  return true;
 }
 } // namespace FX

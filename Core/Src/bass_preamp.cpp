@@ -6,6 +6,7 @@
  */
 
 #include "bass_preamp.hpp"
+#include "audio_system.hpp"
 #include <cmath>
 
 void BassPreAmp::process(float32_t *pLeft, float32_t *pRight,
@@ -29,11 +30,13 @@ void BassPreAmp::process(float32_t *pLeft, float32_t *pRight,
 void BassPreAmp::updateCoeffs() {
   calcLowShelf(coeffsBass_.data(), sampleRate_, EffectorSpecs::kBassFrequency,
                EffectorSpecs::kBassQ, rawBass_ * EffectorSpecs::kMaxBoostDB);
-  calcHighShelf(coeffsTreble_.data(), sampleRate_, EffectorSpecs::kTrebleFrequency,
-								EffectorSpecs::kTrebleQ, rawTreble_ * EffectorSpecs::kMaxBoostDB);
+  calcHighShelf(coeffsTreble_.data(), sampleRate_,
+                EffectorSpecs::kTrebleFrequency, EffectorSpecs::kTrebleQ,
+                rawTreble_ * EffectorSpecs::kMaxBoostDB);
 }
 
-void BassPreAmp::calcLowShelf(float *coeffs, float fs, float f0, float Q, float gainDB) {
+void BassPreAmp::calcLowShelf(float *coeffs, float fs, float f0, float Q,
+                              float gainDB) {
   // Adapted from Robert Bristow-Johnson's Audio EQ Cookbook
   const float32_t A{std::pow(10.0f, gainDB / 40.0f)};
   const float32_t w0{2.0f * Audio::Math::Pi * f0 / fs};
@@ -59,7 +62,8 @@ void BassPreAmp::calcLowShelf(float *coeffs, float fs, float f0, float Q, float 
   coeffs[4] = -a2 * invA0;
 }
 
-void BassPreAmp::calcHighShelf(float *coeffs, float fs, float f0, float Q, float gainDB) {
+void BassPreAmp::calcHighShelf(float *coeffs, float fs, float f0, float Q,
+                               float gainDB) {
   // Adapted from Robert Bristow-Johnson's Audio EQ Cookbook
   const float32_t A{std::pow(10.0f, gainDB / 40.0f)};
   const float32_t w0{2.0f * Audio::Math::Pi * f0 / fs};

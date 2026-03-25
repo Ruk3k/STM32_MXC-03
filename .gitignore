@@ -13,3 +13,9 @@ Release/
 
 .DS_Store
 Thumbs.db
+
+# Local editor/clangd files
+.cache/
+.clangd
+.vscode/
+compile_commands.json

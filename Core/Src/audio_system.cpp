@@ -9,17 +9,19 @@
 // ============================================================================
 // Hardware DMA & USB Buffers (Definitions)
 // ============================================================================
-__attribute__((section(".sram4"), aligned(4))) std::array<int32_t, AudioConfig::DMABufferSize>
-	monitorTxBuffer{};
+__attribute__((section(".sram4"),
+               aligned(4))) std::array<int32_t, AudioConfig::DMABufferSize>
+    monitorTxBuffer{};
 
-__attribute__((section(".sram4"), aligned(4))) std::array<int32_t, AudioConfig::DMABufferSize>
-	ADCRxBuffer{};
+__attribute__((section(".sram4"),
+               aligned(4))) std::array<int32_t, AudioConfig::DMABufferSize>
+    ADCRxBuffer{};
 
 __attribute__((aligned(32))) std::array<int32_t, AudioConfig::DMABufferSize>
-	frontUSBRxBuffer{};
+    frontUSBRxBuffer{};
 
 __attribute__((aligned(32))) std::array<int32_t, AudioConfig::DMABufferSize>
-	rearUSBRxBuffer{};
+    rearUSBRxBuffer{};
 
 // USB Ring Buffers
 AudioRingBuffer<int16_t, AudioConfig::USBRingBufferSize> mainUSBRxBuffer;

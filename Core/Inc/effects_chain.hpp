@@ -1,8 +1,6 @@
-/*
- * effects_chain.hpp
- *
- *  Effects chain management
- *      Author: Ruk3k
+/**
+ * @file effects_chain.hpp
+ * @brief Effect chain configuration and public control API.
  */
 
 #pragma once
@@ -14,20 +12,24 @@
 #include <array>
 #include <cstddef>
 
-
 namespace FX {
 // ========================================================================
 // Effects Chain Configuration
 // ========================================================================
+/** @brief Maximum number of effect slots in chain. */
 constexpr size_t MaxChainCount{5};
 
 // ========================================================================
 // Effect Instances and State
 // ========================================================================
+/** @brief Ordered pointers to active effects. */
 extern std::array<Effector *, MaxChainCount> effectChain;
+/** @brief Bypass state for each effect slot. */
 extern std::array<bool, MaxChainCount> isBypassed;
 
+/** @brief Bass preamp effect instance. */
 extern BassPreAmp sadowskyPreAmp;
+/** @brief Auto-wah effect instance. */
 extern AutoWah autoWah;
 
 // ========================================================================

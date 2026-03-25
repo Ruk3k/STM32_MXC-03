@@ -66,8 +66,17 @@ EndBSPDependencies */
 #include "usbd_audio.h"
 #include "usbd_ctlreq.h"
 
+/* USER CODE BEGIN */
+/*
+ * Custom async-audio extension (user-modified area):
+ * - Adds feedback endpoint handling for asynchronous USB audio sink.
+ * - Uses app-side ring-buffer fill level to tune feedback sampling rate.
+ * - Keeps all changes inside USER CODE sections so CubeMX regeneration is safe.
+ */
 extern SAI_HandleTypeDef hsai_BlockB4;
 extern int32_t mainUSBRxBufferGetAvailableFrames(void);
+/* USER CODE END */
+
 /** @addtogroup STM32_USB_DEVICE_LIBRARY
  * @{
  */
@@ -407,6 +416,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx) {
   pdev->ep_out[AUDIOOutEpAdd & 0xFU].is_used = 1U;
 
   /* USER CODE BEGIN */
+  /* User customization: open and initialize feedback IN endpoint (async mode). */
   /* Open EP IN */
   (void)USBD_LL_OpenEP(pdev, AUDIOInEpAdd, USBD_EP_TYPE_ISOC, AUDIO_IN_PACKET);
   pdev->ep_in[AUDIOInEpAdd & 0xFU].is_used = 1U;
@@ -422,6 +432,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx) {
   haudio->rd_enable = 0U;
 
   /* USER CODE BEGIN */
+  /* User customization: initialize async feedback controller state. */
   haudio->iso_cont.fs = USBD_AUDIO_FREQ;
   haudio->iso_cont.fnsof = 0U;
   haudio->iso_cont.usbintn = 0U;
@@ -452,6 +463,7 @@ static uint8_t USBD_AUDIO_Init(USBD_HandleTypeDef *pdev, uint8_t cfgidx) {
 static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx) {
   UNUSED(cfgidx);
   /* USER CODE BEGIN */
+  /* User customization: stop feedback transmission before endpoint close. */
   USBD_AUDIO_HandleTypeDef *haudio;
 
   haudio = (USBD_AUDIO_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
@@ -475,6 +487,7 @@ static uint8_t USBD_AUDIO_DeInit(USBD_HandleTypeDef *pdev, uint8_t cfgidx) {
   pdev->ep_out[AUDIOOutEpAdd & 0xFU].bInterval = 0U;
 
   /* USER CODE BEGIN */
+  /* User customization: close feedback IN endpoint. */
   /* Close EP IN */
   (void)USBD_LL_CloseEP(pdev, AUDIOInEpAdd);
   pdev->ep_in[AUDIOInEpAdd & 0xFU].is_used = 0U;
@@ -618,6 +631,7 @@ static uint8_t *USBD_AUDIO_GetCfgDesc(uint16_t *length) {
  */
 static uint8_t USBD_AUDIO_DataIn(USBD_HandleTypeDef *pdev, uint8_t epnum) {
   /* USER CODE BEGIN */
+  /* User customization: DataIn on feedback EP clears busy flag for next SOF packet. */
   USBD_AUDIO_HandleTypeDef *haudio;
   haudio = (USBD_AUDIO_HandleTypeDef *)pdev->pClassData;
 
@@ -677,6 +691,11 @@ static uint8_t USBD_AUDIO_EP0_TxReady(USBD_HandleTypeDef *pdev) {
  */
 static uint8_t USBD_AUDIO_SOF(USBD_HandleTypeDef *pdev) {
   /* USER CODE BEGIN */
+  /*
+   * User customization: asynchronous feedback producer.
+   * Sends 10.14 fixed-point feedback on EP IN every SOF when endpoint is idle.
+   * Also aligns transmission to odd/even USB frame for robust HS scheduling.
+   */
   USBD_AUDIO_HandleTypeDef *haudio;
   haudio = (USBD_AUDIO_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
 
@@ -790,6 +809,7 @@ void USBD_AUDIO_Sync(USBD_HandleTypeDef *pdev, AUDIO_OffsetTypeDef offset) {
 static uint8_t USBD_AUDIO_IsoINIncomplete(USBD_HandleTypeDef *pdev,
                                           uint8_t epnum) {
   /* USER CODE BEGIN */
+  /* User customization: recover feedback path after IN incomplete event. */
   USBD_AUDIO_HandleTypeDef *haudio;
 
   if (pdev->pClassDataCmsit[pdev->classId] == NULL) {
@@ -829,6 +849,7 @@ static uint8_t USBD_AUDIO_IsoOutIncomplete(USBD_HandleTypeDef *pdev,
   haudio = (USBD_AUDIO_HandleTypeDef *)pdev->pClassDataCmsit[pdev->classId];
 
   /* USER CODE BEGIN */
+  /* User customization: flush incomplete OUT packet before re-arming receive. */
   (void)USBD_LL_FlushEP(pdev, epnum);
   /* USER CODE END */
 
@@ -866,7 +887,10 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum) {
     PacketSize = (uint16_t)USBD_LL_GetRxDataSize(pdev, epnum);
 
     /* USER CODE BEGIN */
-/* If you change kBufferSize in main.cpp, then you should change this macro */
+    /*
+     * User customization: keep packet offset for async feedback phase control.
+     * If you change DMABufferSize in audio_system.hpp, update this macro accordingly.
+     */
 #ifndef SAI_BUF_SIZE
 #define SAI_BUF_SIZE 192U
 #endif
@@ -887,6 +911,10 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum) {
     haudio->wr_ptr += PacketSize;
 
     /* USER CODE BEGIN */
+    /*
+     * User customization: derive adaptive feedback frequency from ring-buffer
+     * fill level (simple proportional correction, clamped to +/-200 Hz).
+     */
     haudio->iso_cont.usbintn++;
 
     if ((haudio->iso_cont.usbintn % 4) == 0) {
@@ -916,6 +944,7 @@ static uint8_t USBD_AUDIO_DataOut(USBD_HandleTypeDef *pdev, uint8_t epnum) {
         haudio->offset = AUDIO_OFFSET_NONE;
 
         /* USER CODE BEGIN */
+        /* User customization: trigger first feedback packet after stream start. */
         haudio->iso_cont.tx_flag = 0U;
         /* USER CODE END */
       }

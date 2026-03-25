@@ -342,10 +342,10 @@ static void MX_GPIO_Init(void) {
 // --- Hardware / HAL Callbacks (C Linkage) ---
 // These functions must use C linkage to be visible to the STM32 HAL drivers.
 extern "C" {
+void mainUSBRxBufferReset() { mainUSBRxBuffer.reset(); }
 void mainUSBRxBufferWrite(int16_t *data, uint32_t length) {
   mainUSBRxBuffer.write(data, length);
 }
-void mainUSBRxBufferReset() { mainUSBRxBuffer.reset(); }
 int32_t mainUSBRxBufferGetAvailableFrames(void) {
   return (int32_t)mainUSBRxBuffer.getAvailableFrames();
 }
@@ -401,7 +401,6 @@ static inline void mixMainUSBAudio(uint32_t numFrames, uint32_t numSamples) {
         static_cast<float32_t>(usbTemp[j * 2]) * Audio::Convert::Int16ToFloat;
     float32_t usbRight = static_cast<float32_t>(usbTemp[j * 2 + 1]) *
                          Audio::Convert::Int16ToFloat;
-
     Mixer::chLeft[j] += usbLeft * Mixer::param.gainMainUSB;
     Mixer::chRight[j] += usbRight * Mixer::param.gainMainUSB;
   }

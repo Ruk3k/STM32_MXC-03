@@ -10,7 +10,6 @@
 #include <array>
 #include <cmath>
 
-
 void AutoWah::process(float32_t *pLeft, float32_t *pRight, uint32_t numFrames) {
   static std::array<float32_t, 48> dryL{}, dryR{};
   for (uint32_t i = 0; i < numFrames; ++i) {

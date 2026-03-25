@@ -1,26 +1,28 @@
-/*
- * ui_controller.hpp
- *
- *  UI state machine and control interface
- *      Author: Ruk3k
+/**
+ * @file ui_controller.hpp
+ * @brief UI state machine and command-driven control interface.
  */
 
 #pragma once
 
-#include "arm_math.h"
 #include <cstdint>
-
 
 namespace UI {
 // ========================================================================
 // UI State Definitions
 // ========================================================================
+/**
+ * @brief UI operation modes.
+ */
 enum class Mode {
   HomeAdjustMasterVol, // State 1: Adjust master volume
   SelectChannel,       // State 2: Select input channel
   AdjustChannelVol,    // State 3: Adjust selected channel volume
 };
 
+/**
+ * @brief Mutable UI controller state.
+ */
 struct State {
   Mode currentMode{Mode::HomeAdjustMasterVol};
   int32_t selectedIdx{0}; // 0:IN1_L, 1:IN2_R, 2:USB_M, 3:USB_F, 4:USB_R
@@ -31,7 +33,9 @@ struct State {
 // ========================================================================
 // UI Controller State
 // ========================================================================
+/** @brief Global UI state instance. */
 extern State state;
+/** @brief Render request flag toggled by UI events. */
 extern volatile bool isRenderNeeded;
 
 // ========================================================================
