@@ -18,4 +18,5 @@ Thumbs.db
 .cache/
 .clangd
 .vscode/
+.metadata/
 compile_commands.json

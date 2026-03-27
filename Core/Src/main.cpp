@@ -422,7 +422,6 @@ static inline void processOutput(uint32_t start, uint32_t numFrames) {
 static void handleAudioBlock(uint32_t start, uint32_t end) {
   const uint32_t numSamples{end - start};
   const uint32_t numFrames{numSamples / 2};
-  d_usbRxAvailableFrames = mainUSBRxBuffer.getAvailableFrames();
 
   processADCMonoLeftChannelInput(start, numFrames);
   processADCMonoRightChannelInput(start, numFrames);

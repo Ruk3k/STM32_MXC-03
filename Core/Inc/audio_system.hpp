@@ -95,9 +95,9 @@ struct Parameter {
   float32_t gainADCLeft{0.0f};
   float32_t gainADCRight{0.0f};
   float32_t gainMainUSB{1.0f};
-  float32_t gainFrontUSB{1.0f};
-  float32_t gainRearUSB{1.0f};
-  float32_t gainMaster{0.8f};
+  float32_t gainFrontUSB{0.0f};
+  float32_t gainRearUSB{0.0f};
+  float32_t gainMaster{1.0f};
 };
 
 /** @brief Global mixer parameter instance. */
@@ -113,9 +113,3 @@ inline float32_t clampGain(float32_t value) {
   return std::min(1.0f, std::max(0.0f, value));
 }
 } // namespace Mixer
-
-// ============================================================================
-// 4. Debugging & Monitoring
-// ============================================================================
-/** @brief Debug value: currently available USB RX frames. */
-extern uint32_t d_usbRxAvailableFrames;

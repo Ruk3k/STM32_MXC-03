@@ -9,6 +9,39 @@
 #include "display_engine.hpp"
 
 namespace UI {
+namespace {
+constexpr int GainSteps{20};
+constexpr int PixelsPerStep{2};
+
+int gainToSteps(float32_t gain) {
+  const float32_t clamped{Mixer::clampGain(gain)};
+  return static_cast<int>(clamped * static_cast<float32_t>(GainSteps) + 0.5f);
+}
+
+float32_t stepsToGain(int steps) {
+  if (steps < 0) {
+    steps = 0;
+  } else if (steps > GainSteps) {
+    steps = GainSteps;
+  }
+  return static_cast<float32_t>(steps) / static_cast<float32_t>(GainSteps);
+}
+
+void nudgeGain(float32_t &gain, int deltaSteps) {
+  int steps{gainToSteps(gain) + deltaSteps};
+  if (steps < 0) {
+    steps = 0;
+  } else if (steps > GainSteps) {
+    steps = GainSteps;
+  }
+  gain = stepsToGain(steps);
+}
+
+int gainToBarHeight(float32_t gain) {
+  return gainToSteps(gain) * PixelsPerStep;
+}
+} // namespace
+
 // ========================================================================
 // UI State (Definition)
 // ========================================================================
@@ -29,24 +62,24 @@ void initialize() {
 void render() {
   Display::clear();
 
-  int barWidth{11};
-  int spacing{9};
+  int barWidth{9};
+  int spacing{11};
 
   // Calculate bar heights from mixer gains
-  int in1Height{static_cast<int>(Mixer::param.gainADCLeft * 40.0f)};
-  int in2Height{static_cast<int>(Mixer::param.gainADCRight * 40.0f)};
-  int mainUSBHeight{static_cast<int>(Mixer::param.gainMainUSB * 40.0f)};
-  int frontUSBHeight{static_cast<int>(Mixer::param.gainFrontUSB * 40.0f)};
-  int rearUSBHeight{static_cast<int>(Mixer::param.gainRearUSB * 40.0f)};
-  int masterHeight{static_cast<int>(Mixer::param.gainMaster * 40.0f)};
+  int in1Height{gainToBarHeight(Mixer::param.gainADCLeft)};
+  int in2Height{gainToBarHeight(Mixer::param.gainADCRight)};
+  int mainUSBHeight{gainToBarHeight(Mixer::param.gainMainUSB)};
+  int frontUSBHeight{gainToBarHeight(Mixer::param.gainFrontUSB)};
+  int rearUSBHeight{gainToBarHeight(Mixer::param.gainRearUSB)};
+  int masterHeight{gainToBarHeight(Mixer::param.gainMaster)};
 
   // Draw channel labels
-  Display::drawString(1 * spacing, 5, "I1");
-  Display::drawString(2 * spacing + 1 * barWidth, 5, "I2");
-  Display::drawString(3 * spacing + 2 * barWidth, 5, "UM");
-  Display::drawString(4 * spacing + 3 * barWidth, 5, "UF");
-  Display::drawString(5 * spacing + 4 * barWidth, 5, "UR");
-  Display::drawString(6 * spacing + 5 * barWidth, 5, "MN");
+  Display::drawString(1 * spacing - 1, 5, "I1");
+  Display::drawString(2 * spacing + 1 * barWidth - 1, 5, "I2");
+  Display::drawString(3 * spacing + 2 * barWidth - 1, 5, "UM");
+  Display::drawString(4 * spacing + 3 * barWidth - 1, 5, "UF");
+  Display::drawString(5 * spacing + 4 * barWidth - 1, 5, "UR");
+  Display::drawString(6 * spacing + 5 * barWidth - 1, 5, "MN");
 
   // Draw bars based on current mode
   if (state.currentMode == UI::Mode::HomeAdjustMasterVol) {
@@ -102,8 +135,6 @@ void render() {
 }
 
 void processCommand(char cmd) {
-  float32_t step{0.10f};
-
   // Reset command
   if (cmd == 'R') {
     state.currentMode = UI::Mode::HomeAdjustMasterVol;
@@ -112,11 +143,9 @@ void processCommand(char cmd) {
 
   if (state.currentMode == UI::Mode::HomeAdjustMasterVol) {
     if (cmd == 'D')
-      Mixer::param.gainMaster =
-          Mixer::clampGain(Mixer::param.gainMaster + step);
+      nudgeGain(Mixer::param.gainMaster, +1);
     if (cmd == 'A')
-      Mixer::param.gainMaster =
-          Mixer::clampGain(Mixer::param.gainMaster - step);
+      nudgeGain(Mixer::param.gainMaster, -1);
     if (cmd == 'E')
       state.currentMode = UI::Mode::SelectChannel;
   }
@@ -133,39 +162,29 @@ void processCommand(char cmd) {
   else if (state.currentMode == UI::Mode::AdjustChannelVol) {
     if (state.selectedIdx == 0) {
       if (cmd == 'D')
-        Mixer::param.gainADCLeft =
-            Mixer::clampGain(Mixer::param.gainADCLeft + step);
+        nudgeGain(Mixer::param.gainADCLeft, +1);
       if (cmd == 'A')
-        Mixer::param.gainADCLeft =
-            Mixer::clampGain(Mixer::param.gainADCLeft - step);
+        nudgeGain(Mixer::param.gainADCLeft, -1);
     } else if (state.selectedIdx == 1) {
       if (cmd == 'D')
-        Mixer::param.gainADCRight =
-            Mixer::clampGain(Mixer::param.gainADCRight + step);
+        nudgeGain(Mixer::param.gainADCRight, +1);
       if (cmd == 'A')
-        Mixer::param.gainADCRight =
-            Mixer::clampGain(Mixer::param.gainADCRight - step);
+        nudgeGain(Mixer::param.gainADCRight, -1);
     } else if (state.selectedIdx == 2) {
       if (cmd == 'D')
-        Mixer::param.gainMainUSB =
-            Mixer::clampGain(Mixer::param.gainMainUSB + step);
+        nudgeGain(Mixer::param.gainMainUSB, +1);
       if (cmd == 'A')
-        Mixer::param.gainMainUSB =
-            Mixer::clampGain(Mixer::param.gainMainUSB - step);
+        nudgeGain(Mixer::param.gainMainUSB, -1);
     } else if (state.selectedIdx == 3) {
       if (cmd == 'D')
-        Mixer::param.gainFrontUSB =
-            Mixer::clampGain(Mixer::param.gainFrontUSB + step);
+        nudgeGain(Mixer::param.gainFrontUSB, +1);
       if (cmd == 'A')
-        Mixer::param.gainFrontUSB =
-            Mixer::clampGain(Mixer::param.gainFrontUSB - step);
+        nudgeGain(Mixer::param.gainFrontUSB, -1);
     } else if (state.selectedIdx == 4) {
       if (cmd == 'D')
-        Mixer::param.gainRearUSB =
-            Mixer::clampGain(Mixer::param.gainRearUSB + step);
+        nudgeGain(Mixer::param.gainRearUSB, +1);
       if (cmd == 'A')
-        Mixer::param.gainRearUSB =
-            Mixer::clampGain(Mixer::param.gainRearUSB - step);
+        nudgeGain(Mixer::param.gainRearUSB, -1);
     }
 
     if (cmd == 'E')
