@@ -53,10 +53,16 @@ SAI_HandleTypeDef hsai_BlockB4;
 DMA_HandleTypeDef hdma_sai4_a;
 DMA_HandleTypeDef hdma_sai4_b;
 
+TIM_HandleTypeDef htim3;
+
 /* USER CODE BEGIN PV */
 extern UART_HandleTypeDef hcom_uart[];
 uint8_t uartRxCmd{0};
+volatile bool userButtonPressed{false};
+uint16_t prevEncoderRawCount{0};
+constexpr uint32_t UserButtonLongPressMs{500};
 
+uint32_t cnt{0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -66,6 +72,7 @@ static void MPU_Config(void);
 static void MX_BDMA_Init(void);
 static void MX_GPIO_Init(void);
 static void MX_SAI4_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -117,6 +124,7 @@ int main(void) {
   MX_GPIO_Init();
   MX_SAI4_Init();
   MX_USB_DEVICE_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   auto *pMonitorTx{reinterpret_cast<uint8_t *>(monitorTxBuffer.data())};
   auto *pADCRx{reinterpret_cast<uint8_t *>(ADCRxBuffer.data())};
@@ -129,6 +137,10 @@ int main(void) {
       HAL_OK) {
     Error_Handler();
   }
+  if (HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL) != HAL_OK) {
+    Error_Handler();
+  }
+  prevEncoderRawCount = static_cast<uint16_t>(__HAL_TIM_GET_COUNTER(&htim3));
 
   UI::render();
   /* USER CODE END 2 */
@@ -159,11 +171,61 @@ int main(void) {
   HAL_NVIC_EnableIRQ(USART3_IRQn);
   HAL_UART_Receive_IT(&hcom_uart[COM1], &uartRxCmd, 1);
 
+  bool isUserButtonTracking{false};
+  bool isUserButtonLongPressHandled{false};
+  uint32_t userButtonPressStartTick{0};
+  int16_t encoderSubCount{0};
+
   while (1) {
+    const uint16_t rawCurrentCount{
+        static_cast<uint16_t>(__HAL_TIM_GET_COUNTER(&htim3))};
+    const int16_t rawDelta{
+        static_cast<int16_t>(rawCurrentCount - prevEncoderRawCount)};
+    prevEncoderRawCount = rawCurrentCount;
+
+    // Keep quadrature x4 decoding and emit one UI step per 4 counts.
+    encoderSubCount = static_cast<int16_t>(encoderSubCount + rawDelta);
+
+    while (encoderSubCount >= 4) {
+      UI::processCommand('D');
+      encoderSubCount = static_cast<int16_t>(encoderSubCount - 4);
+    }
+    while (encoderSubCount <= -4) {
+      UI::processCommand('A');
+      encoderSubCount = static_cast<int16_t>(encoderSubCount + 4);
+    }
+
+    if (userButtonPressed) {
+      userButtonPressed = false;
+      if (!isUserButtonTracking &&
+          BSP_PB_GetState(BUTTON_USER) == GPIO_PIN_SET) {
+        isUserButtonTracking = true;
+        isUserButtonLongPressHandled = false;
+        userButtonPressStartTick = HAL_GetTick();
+      }
+    }
+
+    if (isUserButtonTracking) {
+      if (BSP_PB_GetState(BUTTON_USER) == GPIO_PIN_SET) {
+        if (!isUserButtonLongPressHandled &&
+            (HAL_GetTick() - userButtonPressStartTick) >=
+                UserButtonLongPressMs) {
+          UI::processCommand('R');
+          isUserButtonLongPressHandled = true;
+        }
+      } else {
+        if (!isUserButtonLongPressHandled) {
+          UI::processCommand('E');
+        }
+        isUserButtonTracking = false;
+      }
+    }
+
     if (UI::isRenderNeeded) {
       UI::isRenderNeeded = false;
       UI::render();
     }
+    cnt = rawCurrentCount;
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -299,6 +361,51 @@ static void MX_SAI4_Init(void) {
   /* USER CODE BEGIN SAI4_Init 2 */
 
   /* USER CODE END SAI4_Init 2 */
+}
+
+/**
+ * @brief TIM3 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_TIM3_Init(void) {
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_Encoder_InitTypeDef sConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 0;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 65535;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
+  sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC1Filter = 10;
+  sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
+  sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
+  sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
+  sConfig.IC2Filter = 10;
+  if (HAL_TIM_Encoder_Init(&htim3, &sConfig) != HAL_OK) {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK) {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
 }
 
 /**
@@ -447,6 +554,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
   if (huart->Instance == USART3) {
     UI::processCommand(static_cast<char>(uartRxCmd));
     HAL_UART_Receive_IT(huart, &uartRxCmd, 1);
+  }
+}
+
+void BSP_PB_Callback(Button_TypeDef Button) {
+  if (Button == BUTTON_USER) {
+    userButtonPressed = true;
   }
 }
 }
