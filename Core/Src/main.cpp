@@ -26,6 +26,7 @@
 #include "display_engine.hpp"
 #include "effects_chain.hpp"
 #include "ui_controller.hpp"
+#include "ui_input_manager.hpp"
 
 /* USER CODE END Includes */
 
@@ -48,8 +49,12 @@
 
 COM_InitTypeDef BspCOMInit;
 
+SAI_HandleTypeDef hsai_BlockA1;
+SAI_HandleTypeDef hsai_BlockB1;
 SAI_HandleTypeDef hsai_BlockA4;
 SAI_HandleTypeDef hsai_BlockB4;
+DMA_HandleTypeDef hdma_sai1_a;
+DMA_HandleTypeDef hdma_sai1_b;
 DMA_HandleTypeDef hdma_sai4_a;
 DMA_HandleTypeDef hdma_sai4_b;
 
@@ -57,22 +62,18 @@ TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
 extern UART_HandleTypeDef hcom_uart[];
-uint8_t uartRxCmd{0};
-volatile bool userButtonPressed{false};
-uint16_t prevEncoderRawCount{0};
-constexpr uint32_t UserButtonLongPressMs{500};
-
-uint32_t cnt{0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MPU_Config(void);
-static void MX_BDMA_Init(void);
 static void MX_GPIO_Init(void);
-static void MX_SAI4_Init(void);
+static void MX_DMA_Init(void);
+static void MX_BDMA_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_SAI1_Init(void);
+static void MX_SAI4_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -120,15 +121,27 @@ int main(void) {
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
-  MX_BDMA_Init();
   MX_GPIO_Init();
-  MX_SAI4_Init();
-  MX_USB_DEVICE_Init();
+  MX_DMA_Init();
+  MX_BDMA_Init();
   MX_TIM3_Init();
+  MX_USB_DEVICE_Init();
+  MX_SAI1_Init();
+  MX_SAI4_Init();
   /* USER CODE BEGIN 2 */
   auto *pMonitorTx{reinterpret_cast<uint8_t *>(monitorTxBuffer.data())};
   auto *pADCRx{reinterpret_cast<uint8_t *>(ADCRxBuffer.data())};
+  auto *pFrontUSBRx{reinterpret_cast<uint8_t *>(frontUSBRxBuffer.data())};
+  auto *pRearUSBRx{reinterpret_cast<uint8_t *>(rearUSBRxBuffer.data())};
 
+  if (HAL_SAI_Receive_DMA(&hsai_BlockA1, pFrontUSBRx,
+                          AudioConfig::DMABufferSize) != HAL_OK) {
+    Error_Handler();
+  }
+  if (HAL_SAI_Receive_DMA(&hsai_BlockB1, pRearUSBRx,
+                          AudioConfig::DMABufferSize) != HAL_OK) {
+    Error_Handler();
+  }
   if (HAL_SAI_Transmit_DMA(&hsai_BlockB4, pMonitorTx,
                            AudioConfig::DMABufferSize) != HAL_OK) {
     Error_Handler();
@@ -140,7 +153,6 @@ int main(void) {
   if (HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL) != HAL_OK) {
     Error_Handler();
   }
-  prevEncoderRawCount = static_cast<uint16_t>(__HAL_TIM_GET_COUNTER(&htim3));
 
   UI::render();
   /* USER CODE END 2 */
@@ -169,63 +181,10 @@ int main(void) {
   /* USER CODE BEGIN WHILE */
   HAL_NVIC_SetPriority(USART3_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(USART3_IRQn);
-  HAL_UART_Receive_IT(&hcom_uart[COM1], &uartRxCmd, 1);
-
-  bool isUserButtonTracking{false};
-  bool isUserButtonLongPressHandled{false};
-  uint32_t userButtonPressStartTick{0};
-  int16_t encoderSubCount{0};
+  UiInput::initialize(htim3, hcom_uart[COM1]);
 
   while (1) {
-    const uint16_t rawCurrentCount{
-        static_cast<uint16_t>(__HAL_TIM_GET_COUNTER(&htim3))};
-    const int16_t rawDelta{
-        static_cast<int16_t>(rawCurrentCount - prevEncoderRawCount)};
-    prevEncoderRawCount = rawCurrentCount;
-
-    // Keep quadrature x4 decoding and emit one UI step per 4 counts.
-    encoderSubCount = static_cast<int16_t>(encoderSubCount + rawDelta);
-
-    while (encoderSubCount >= 4) {
-      UI::processCommand('D');
-      encoderSubCount = static_cast<int16_t>(encoderSubCount - 4);
-    }
-    while (encoderSubCount <= -4) {
-      UI::processCommand('A');
-      encoderSubCount = static_cast<int16_t>(encoderSubCount + 4);
-    }
-
-    if (userButtonPressed) {
-      userButtonPressed = false;
-      if (!isUserButtonTracking &&
-          BSP_PB_GetState(BUTTON_USER) == GPIO_PIN_SET) {
-        isUserButtonTracking = true;
-        isUserButtonLongPressHandled = false;
-        userButtonPressStartTick = HAL_GetTick();
-      }
-    }
-
-    if (isUserButtonTracking) {
-      if (BSP_PB_GetState(BUTTON_USER) == GPIO_PIN_SET) {
-        if (!isUserButtonLongPressHandled &&
-            (HAL_GetTick() - userButtonPressStartTick) >=
-                UserButtonLongPressMs) {
-          UI::processCommand('R');
-          isUserButtonLongPressHandled = true;
-        }
-      } else {
-        if (!isUserButtonLongPressHandled) {
-          UI::processCommand('E');
-        }
-        isUserButtonTracking = false;
-      }
-    }
-
-    if (UI::isRenderNeeded) {
-      UI::isRenderNeeded = false;
-      UI::render();
-    }
-    cnt = rawCurrentCount;
+    UiInput::processLoop();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -301,7 +260,7 @@ void PeriphCommonClock_Config(void) {
   /** Initializes the peripherals clock
    */
   PeriphClkInitStruct.PeriphClockSelection =
-      RCC_PERIPHCLK_SAI4A | RCC_PERIPHCLK_SAI4B;
+      RCC_PERIPHCLK_SAI4A | RCC_PERIPHCLK_SAI4B | RCC_PERIPHCLK_SAI1;
   PeriphClkInitStruct.PLL3.PLL3M = 5;
   PeriphClkInitStruct.PLL3.PLL3N = 192;
   PeriphClkInitStruct.PLL3.PLL3P = 25;
@@ -310,11 +269,55 @@ void PeriphCommonClock_Config(void) {
   PeriphClkInitStruct.PLL3.PLL3RGE = RCC_PLL3VCIRANGE_0;
   PeriphClkInitStruct.PLL3.PLL3VCOSEL = RCC_PLL3VCOMEDIUM;
   PeriphClkInitStruct.PLL3.PLL3FRACN = 0;
+  PeriphClkInitStruct.Sai1ClockSelection = RCC_SAI1CLKSOURCE_PLL3;
   PeriphClkInitStruct.Sai4AClockSelection = RCC_SAI4ACLKSOURCE_PLL3;
   PeriphClkInitStruct.Sai4BClockSelection = RCC_SAI4BCLKSOURCE_PLL3;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
     Error_Handler();
   }
+}
+
+/**
+ * @brief SAI1 Initialization Function
+ * @param None
+ * @retval None
+ */
+static void MX_SAI1_Init(void) {
+
+  /* USER CODE BEGIN SAI1_Init 0 */
+
+  /* USER CODE END SAI1_Init 0 */
+
+  /* USER CODE BEGIN SAI1_Init 1 */
+
+  /* USER CODE END SAI1_Init 1 */
+  hsai_BlockA1.Instance = SAI1_Block_A;
+  hsai_BlockA1.Init.AudioMode = SAI_MODESLAVE_RX;
+  hsai_BlockA1.Init.Synchro = SAI_SYNCHRONOUS_EXT_SAI4;
+  hsai_BlockA1.Init.OutputDrive = SAI_OUTPUTDRIVE_DISABLE;
+  hsai_BlockA1.Init.FIFOThreshold = SAI_FIFOTHRESHOLD_EMPTY;
+  hsai_BlockA1.Init.MonoStereoMode = SAI_STEREOMODE;
+  hsai_BlockA1.Init.CompandingMode = SAI_NOCOMPANDING;
+  hsai_BlockA1.Init.TriState = SAI_OUTPUT_NOTRELEASED;
+  if (HAL_SAI_InitProtocol(&hsai_BlockA1, SAI_I2S_STANDARD,
+                           SAI_PROTOCOL_DATASIZE_32BIT, 2) != HAL_OK) {
+    Error_Handler();
+  }
+  hsai_BlockB1.Instance = SAI1_Block_B;
+  hsai_BlockB1.Init.AudioMode = SAI_MODESLAVE_RX;
+  hsai_BlockB1.Init.Synchro = SAI_SYNCHRONOUS_EXT_SAI4;
+  hsai_BlockB1.Init.OutputDrive = SAI_OUTPUTDRIVE_DISABLE;
+  hsai_BlockB1.Init.FIFOThreshold = SAI_FIFOTHRESHOLD_EMPTY;
+  hsai_BlockB1.Init.MonoStereoMode = SAI_STEREOMODE;
+  hsai_BlockB1.Init.CompandingMode = SAI_NOCOMPANDING;
+  hsai_BlockB1.Init.TriState = SAI_OUTPUT_NOTRELEASED;
+  if (HAL_SAI_InitProtocol(&hsai_BlockB1, SAI_I2S_STANDARD,
+                           SAI_PROTOCOL_DATASIZE_32BIT, 2) != HAL_OK) {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SAI1_Init 2 */
+
+  /* USER CODE END SAI1_Init 2 */
 }
 
 /**
@@ -426,6 +429,23 @@ static void MX_BDMA_Init(void) {
 }
 
 /**
+ * Enable DMA controller clock
+ */
+static void MX_DMA_Init(void) {
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+  /* DMA1_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+}
+
+/**
  * @brief GPIO Initialization Function
  * @param None
  * @retval None
@@ -437,8 +457,10 @@ static void MX_GPIO_Init(void) {
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* USER CODE END MX_GPIO_Init_2 */
@@ -513,6 +535,30 @@ static inline void mixMainUSBAudio(uint32_t numFrames, uint32_t numSamples) {
   }
 }
 
+static inline void mixFrontUSBAudio(uint32_t start, uint32_t numFrames) {
+  for (uint32_t i = start, j = 0; j < numFrames; ++j, i += 2) {
+    float32_t usbLeft = static_cast<float32_t>(frontUSBRxBuffer[i]) *
+                        Audio::Convert::Int32ToFloat;
+    float32_t usbRight = static_cast<float32_t>(frontUSBRxBuffer[i + 1]) *
+                         Audio::Convert::Int32ToFloat;
+
+    Mixer::chLeft[j] += usbLeft * Mixer::param.gainFrontUSB;
+    Mixer::chRight[j] += usbRight * Mixer::param.gainFrontUSB;
+  }
+}
+
+static inline void mixRearUSBAudio(uint32_t start, uint32_t numFrames) {
+  for (uint32_t i = start, j = 0; j < numFrames; ++j, i += 2) {
+    float32_t usbLeft = static_cast<float32_t>(rearUSBRxBuffer[i]) *
+                        Audio::Convert::Int32ToFloat;
+    float32_t usbRight = static_cast<float32_t>(rearUSBRxBuffer[i + 1]) *
+                         Audio::Convert::Int32ToFloat;
+
+    Mixer::chLeft[j] += usbLeft * Mixer::param.gainRearUSB;
+    Mixer::chRight[j] += usbRight * Mixer::param.gainRearUSB;
+  }
+}
+
 static inline void processOutput(uint32_t start, uint32_t numFrames) {
   for (uint32_t i = start, j = 0; j < numFrames; ++j, i += 2) {
     monitorTxBuffer[i] =
@@ -534,6 +580,8 @@ static void handleAudioBlock(uint32_t start, uint32_t end) {
   processADCMonoRightChannelInput(start, numFrames);
   processFX(numFrames);
   mixMainUSBAudio(numFrames, numSamples);
+  mixFrontUSBAudio(start, numFrames);
+  mixRearUSBAudio(start, numFrames);
   processOutput(start, numFrames);
 }
 
@@ -551,16 +599,11 @@ void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai) {
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
-  if (huart->Instance == USART3) {
-    UI::processCommand(static_cast<char>(uartRxCmd));
-    HAL_UART_Receive_IT(huart, &uartRxCmd, 1);
-  }
+  UiInput::onUartRxComplete(huart);
 }
 
 void BSP_PB_Callback(Button_TypeDef Button) {
-  if (Button == BUTTON_USER) {
-    userButtonPressed = true;
-  }
+  UiInput::onUserButtonInterrupt(Button);
 }
 }
 /* USER CODE END 4 */

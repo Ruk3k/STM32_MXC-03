@@ -35,8 +35,3 @@ std::array<float32_t, AudioConfig::FramesPerBlock> chLeft{};
 std::array<float32_t, AudioConfig::FramesPerBlock> chRight{};
 Parameter param;
 } // namespace Mixer
-
-// ============================================================================
-// Debugging & Monitoring (Definitions)
-// ============================================================================
-uint32_t d_usbRxAvailableFrames{};
