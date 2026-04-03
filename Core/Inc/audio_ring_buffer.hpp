@@ -1,4 +1,4 @@
-#/**
+/**
  * @file audio_ring_buffer.hpp
  * @brief Lock-free ring buffer for audio sample streaming.
  */

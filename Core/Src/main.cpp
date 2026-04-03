@@ -23,7 +23,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "audio_system.hpp"
-#include "display_engine.hpp"
 #include "effects_chain.hpp"
 #include "ui_controller.hpp"
 #include "ui_input_manager.hpp"
@@ -300,7 +299,7 @@ static void MX_SAI1_Init(void) {
   hsai_BlockA1.Init.CompandingMode = SAI_NOCOMPANDING;
   hsai_BlockA1.Init.TriState = SAI_OUTPUT_NOTRELEASED;
   if (HAL_SAI_InitProtocol(&hsai_BlockA1, SAI_I2S_STANDARD,
-                           SAI_PROTOCOL_DATASIZE_32BIT, 2) != HAL_OK) {
+                           SAI_PROTOCOL_DATASIZE_16BITEXTENDED, 2) != HAL_OK) {
     Error_Handler();
   }
   hsai_BlockB1.Instance = SAI1_Block_B;
@@ -312,7 +311,7 @@ static void MX_SAI1_Init(void) {
   hsai_BlockB1.Init.CompandingMode = SAI_NOCOMPANDING;
   hsai_BlockB1.Init.TriState = SAI_OUTPUT_NOTRELEASED;
   if (HAL_SAI_InitProtocol(&hsai_BlockB1, SAI_I2S_STANDARD,
-                           SAI_PROTOCOL_DATASIZE_32BIT, 2) != HAL_OK) {
+                           SAI_PROTOCOL_DATASIZE_16BITEXTENDED, 2) != HAL_OK) {
     Error_Handler();
   }
   /* USER CODE BEGIN SAI1_Init 2 */
@@ -341,7 +340,7 @@ static void MX_SAI4_Init(void) {
   hsai_BlockA4.Init.NoDivider = SAI_MASTERDIVIDER_ENABLE;
   hsai_BlockA4.Init.FIFOThreshold = SAI_FIFOTHRESHOLD_EMPTY;
   hsai_BlockA4.Init.AudioFrequency = SAI_AUDIO_FREQUENCY_48K;
-  hsai_BlockA4.Init.SynchroExt = SAI_SYNCEXT_DISABLE;
+  hsai_BlockA4.Init.SynchroExt = SAI_SYNCEXT_OUTBLOCKA_ENABLE;
   hsai_BlockA4.Init.MonoStereoMode = SAI_STEREOMODE;
   hsai_BlockA4.Init.CompandingMode = SAI_NOCOMPANDING;
   if (HAL_SAI_InitProtocol(&hsai_BlockA4, SAI_I2S_STANDARD,
@@ -353,7 +352,7 @@ static void MX_SAI4_Init(void) {
   hsai_BlockB4.Init.Synchro = SAI_SYNCHRONOUS;
   hsai_BlockB4.Init.OutputDrive = SAI_OUTPUTDRIVE_DISABLE;
   hsai_BlockB4.Init.FIFOThreshold = SAI_FIFOTHRESHOLD_EMPTY;
-  hsai_BlockB4.Init.SynchroExt = SAI_SYNCEXT_DISABLE;
+  hsai_BlockB4.Init.SynchroExt = SAI_SYNCEXT_OUTBLOCKA_ENABLE;
   hsai_BlockB4.Init.MonoStereoMode = SAI_STEREOMODE;
   hsai_BlockB4.Init.CompandingMode = SAI_NOCOMPANDING;
   hsai_BlockB4.Init.TriState = SAI_OUTPUT_NOTRELEASED;
@@ -479,7 +478,7 @@ int32_t mainUSBRxBufferGetAvailableFrames(void) {
   return (int32_t)mainUSBRxBuffer.getAvailableFrames();
 }
 
-static inline void processADCMonoLeftChannelInput(uint32_t start,
+static void processADCMonoLeftChannelInput(uint32_t start,
                                                   uint32_t numFrames) {
   for (uint32_t i = start, j = 0; j < numFrames; ++j, i += 2) {
     float32_t leftSample{static_cast<float32_t>(ADCRxBuffer[i]) *
@@ -489,7 +488,7 @@ static inline void processADCMonoLeftChannelInput(uint32_t start,
   }
 }
 
-static inline void processADCMonoRightChannelInput(uint32_t start,
+static void processADCMonoRightChannelInput(uint32_t start,
                                                    uint32_t numFrames) {
   for (uint32_t i = start, j = 0; i < numFrames; ++j, i += 2) {
     float32_t rightSample{static_cast<float32_t>(ADCRxBuffer[i + 1]) *
@@ -499,18 +498,7 @@ static inline void processADCMonoRightChannelInput(uint32_t start,
   }
 }
 
-static inline void processADCStereoInput(uint32_t start, uint32_t numFrames) {
-  for (uint32_t i = start, j = 0; i < numFrames; ++j, i += 2) {
-    float32_t leftSample{static_cast<float32_t>(ADCRxBuffer[i]) *
-                         Audio::Convert::Int32ToFloat};
-    float32_t rightSample{static_cast<float32_t>(ADCRxBuffer[i + 1]) *
-                          Audio::Convert::Int32ToFloat};
-    Mixer::chLeft[j] = leftSample * Mixer::param.gainADCLeft;
-    Mixer::chRight[j] = rightSample * Mixer::param.gainADCRight;
-  }
-}
-
-static inline void processFX(uint32_t numFrames) {
+static void processFX(uint32_t numFrames) {
   for (uint32_t i = 0; i < FX::MaxChainCount; ++i) {
     if (FX::effectChain[i] != nullptr && !FX::isBypassed[i]) {
       FX::effectChain[i]->process(Mixer::chLeft.data(), Mixer::chRight.data(),
@@ -519,7 +507,7 @@ static inline void processFX(uint32_t numFrames) {
   }
 }
 
-static inline void mixMainUSBAudio(uint32_t numFrames, uint32_t numSamples) {
+static void mixMainUSBAudio(uint32_t numFrames, uint32_t numSamples) {
   static std::array<int16_t, AudioConfig::FramesPerBlock * 2> usbTemp;
 
   std::fill(usbTemp.begin(), usbTemp.end(), 0);
@@ -535,31 +523,37 @@ static inline void mixMainUSBAudio(uint32_t numFrames, uint32_t numSamples) {
   }
 }
 
-static inline void mixFrontUSBAudio(uint32_t start, uint32_t numFrames) {
+static void mixFrontUSBAudio(uint32_t start, uint32_t numFrames) {
   for (uint32_t i = start, j = 0; j < numFrames; ++j, i += 2) {
-    float32_t usbLeft = static_cast<float32_t>(frontUSBRxBuffer[i]) *
-                        Audio::Convert::Int32ToFloat;
-    float32_t usbRight = static_cast<float32_t>(frontUSBRxBuffer[i + 1]) *
-                         Audio::Convert::Int32ToFloat;
+    int16_t usbLeftRaw = static_cast<int16_t>(frontUSBRxBuffer[i] & 0xFFFF);
+    int16_t usbRightRaw =
+        static_cast<int16_t>(frontUSBRxBuffer[i + 1] & 0xFFFF);
+    float32_t usbLeft =
+        static_cast<float32_t>(usbLeftRaw) * Audio::Convert::Int16ToFloat;
+    float32_t usbRight =
+        static_cast<float32_t>(usbRightRaw) * Audio::Convert::Int16ToFloat;
 
     Mixer::chLeft[j] += usbLeft * Mixer::param.gainFrontUSB;
     Mixer::chRight[j] += usbRight * Mixer::param.gainFrontUSB;
   }
 }
 
-static inline void mixRearUSBAudio(uint32_t start, uint32_t numFrames) {
+static void mixRearUSBAudio(uint32_t start, uint32_t numFrames) {
   for (uint32_t i = start, j = 0; j < numFrames; ++j, i += 2) {
-    float32_t usbLeft = static_cast<float32_t>(rearUSBRxBuffer[i]) *
-                        Audio::Convert::Int32ToFloat;
-    float32_t usbRight = static_cast<float32_t>(rearUSBRxBuffer[i + 1]) *
-                         Audio::Convert::Int32ToFloat;
+    int16_t usbLeftRaw = static_cast<int16_t>(rearUSBRxBuffer[i] & 0xFFFF);
+    int16_t usbRightRaw =
+        static_cast<int16_t>(rearUSBRxBuffer[i + 1] & 0xFFFF);
+    float32_t usbLeft =
+        static_cast<float32_t>(usbLeftRaw) * Audio::Convert::Int16ToFloat;
+    float32_t usbRight =
+        static_cast<float32_t>(usbRightRaw) * Audio::Convert::Int16ToFloat;
 
     Mixer::chLeft[j] += usbLeft * Mixer::param.gainRearUSB;
     Mixer::chRight[j] += usbRight * Mixer::param.gainRearUSB;
   }
 }
 
-static inline void processOutput(uint32_t start, uint32_t numFrames) {
+static void processOutput(uint32_t start, uint32_t numFrames) {
   for (uint32_t i = start, j = 0; j < numFrames; ++j, i += 2) {
     monitorTxBuffer[i] =
         __SSAT(static_cast<int32_t>(Mixer::chLeft[j] * Mixer::param.gainMaster *
