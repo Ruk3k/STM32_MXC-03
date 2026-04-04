@@ -65,6 +65,10 @@ void Error_Handler(void);
 #define SWCLK_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
+#define H723_READY_OUT_Pin GPIO_PIN_7
+#define H723_READY_OUT_GPIO_Port GPIOF
+#define F411_READY_IN_Pin GPIO_PIN_8
+#define F411_READY_IN_GPIO_Port GPIOF
 
 /* USER CODE END Private defines */
 
